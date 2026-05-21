@@ -6,7 +6,7 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
-import { Copy, MessageCircle, RotateCcw, Trash2, XCircle, Zap } from "lucide-react";
+import { Copy, MessageCircle, RefreshCw, RotateCcw, Trash2, XCircle, Zap } from "lucide-react";
 import { useAuthToken } from "@/hooks/useAuthToken";
 import { apiFetch } from "@/lib/api";
 import {
@@ -27,6 +27,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
 
 type MotivoCancelamento =
   | "DESISTENCIA"
@@ -111,6 +117,33 @@ type PedidoDetalhe = {
   }>;
 };
 
+type EventoHistorico = PedidoDetalhe["historico"][number];
+
+function normalizarEvento(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/\s+/g, "");
+}
+
+function buscarEvento(historico: EventoHistorico[], nomeNormalizado: string): EventoHistorico | undefined {
+  return historico.find((h) => {
+    const evento = (h.meta && typeof h.meta === "object" && "evento" in h.meta)
+      ? String((h.meta as { evento?: unknown }).evento || "")
+      : "";
+    return normalizarEvento(evento) === nomeNormalizado;
+  });
+}
+
+function fmtData(iso: string | undefined | null): string {
+  if (!iso) return "—";
+  try {
+    return format(new Date(iso), "dd/MM/yyyy HH:mm", { locale: ptBR });
+  } catch {
+    return "—";
+  }
+}
+
 function formatBRL(v: string | number) {
   const n = typeof v === "string" ? parseFloat(v) : v;
   return new Intl.NumberFormat("pt-BR", {
@@ -141,6 +174,9 @@ export default function PedidoDetalhePage({
   const [modalDescartar, setModalDescartar] = useState(false);
   const [motivoDescarte, setMotivoDescarte] = useState<MotivoDescarte | null>(null);
   const [observacaoDescarte, setObservacaoDescarte] = useState("");
+  const [modalRevalidar, setModalRevalidar] = useState(false);
+  const [cpfRepresentante, setCpfRepresentante] = useState("");
+  const [dataNascRepresentante, setDataNascRepresentante] = useState("");
 
   const query = useQuery({
     queryKey: ["pedido", id],
@@ -196,6 +232,23 @@ export default function PedidoDetalhePage({
       setModalDescartar(false);
       setMotivoDescarte(null);
       setObservacaoDescarte("");
+      qc.invalidateQueries({ queryKey: ["pedido", id] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const revalidarSafeweb = useMutation({
+    mutationFn: (payload: { cpfRepresentante: string; dataNascRepresentante: string }) =>
+      apiFetch<{ ok: boolean; protocolo: string; mudancas: Record<string, { antes: string; depois: string }> }>(
+        `/api/admin/pedidos/${id}/revalidar-safeweb`,
+        token!,
+        { method: "POST", body: JSON.stringify(payload) }
+      ),
+    onSuccess: (r) => {
+      toast.success(`Dados corrigidos via Safeweb. Protocolo ${r.protocolo} mantido.`);
+      setModalRevalidar(false);
+      setCpfRepresentante("");
+      setDataNascRepresentante("");
       qc.invalidateQueries({ queryKey: ["pedido", id] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -290,12 +343,66 @@ export default function PedidoDetalhePage({
               className={
                 ehAbandonado
                   ? "border-amber-500 bg-amber-50 text-amber-900"
+                  : p.status === "REVOGADO"
+                  ? "border-red-500 bg-red-50 text-red-900"
+                  : p.status === "EMITIDO"
+                  ? "border-green-600 bg-green-50 text-green-900"
                   : undefined
               }
-              variant={ehAbandonado ? "outline" : "default"}
+              variant={ehAbandonado || p.status === "REVOGADO" || p.status === "EMITIDO" ? "outline" : "default"}
             >
               {p.status}
             </Badge>
+            {p.status === "REVOGADO" && (() => {
+              const emissao = buscarEvento(p.historico, "Emissao");
+              const revogacao = buscarEvento(p.historico, "Revogacao");
+              return (
+                <TooltipProvider delay={150}>
+                  <Tooltip>
+                    <TooltipTrigger
+                      className="italic text-xs font-serif text-muted-foreground hover:text-foreground cursor-help leading-none"
+                      aria-label="Informações da revogação"
+                    >
+                      i
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs space-y-1 text-xs">
+                      <div className="font-semibold">Detalhes da revogação</div>
+                      <div>
+                        <span className="text-muted-foreground">Emitido em:</span>{" "}
+                        <span className="font-medium">{fmtData(emissao?.createdAt)}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Revogado em:</span>{" "}
+                        <span className="font-medium">{fmtData(revogacao?.createdAt)}</span>
+                      </div>
+                      {emissao && revogacao && (
+                        <div className="pt-1 border-t">
+                          <span className="text-muted-foreground">Vigência:</span>{" "}
+                          <span className="font-medium">
+                            {(() => {
+                              const ms = new Date(revogacao.createdAt).getTime() - new Date(emissao.createdAt).getTime();
+                              const min = Math.round(ms / 60000);
+                              if (min < 60) return `${min} min`;
+                              const h = Math.round(min / 60);
+                              if (h < 24) return `${h} h`;
+                              return `${Math.round(h / 24)} dia(s)`;
+                            })()}
+                          </span>
+                        </div>
+                      )}
+                      {revogacao?.meta && typeof revogacao.meta === "object" && "responsavelEvento" in revogacao.meta && (
+                        <div>
+                          <span className="text-muted-foreground">Responsável:</span>{" "}
+                          <span className="font-medium">
+                            {String((revogacao.meta as { responsavelEvento?: unknown }).responsavelEvento || "—")}
+                          </span>
+                        </div>
+                      )}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              );
+            })()}
             <Badge variant="outline">{p.tipoCertificado}</Badge>
           </div>
         )}
@@ -350,6 +457,13 @@ export default function PedidoDetalhePage({
               {regenerarPix.isPending ? "Regenerando..." : "Regenerar PIX"}
             </Button>
           )}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setModalRevalidar(true)}
+          >
+            <RefreshCw className="size-4 mr-1" /> Revalidar Safeweb
+          </Button>
           {podeCancelar && !ehAbandonado && (
             <Button
               size="sm"
@@ -478,6 +592,72 @@ export default function PedidoDetalhePage({
               }
             >
               {descartar.isPending ? "Descartando..." : "Confirmar descarte"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={modalRevalidar} onOpenChange={setModalRevalidar}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Revalidar dados via Safeweb RFB</DialogTitle>
+            <DialogDescription>
+              Consulta o CPF + DOB do representante na Receita Federal. Atualiza
+              <strong> apenas </strong>
+              nome do cliente {p?.cnpj ? "e razão social" : ""}. Protocolo, status e pagamento
+              permanecem intactos.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <label className="text-sm font-medium">CPF do representante</label>
+              <input
+                type="text"
+                value={cpfRepresentante}
+                onChange={(e) => setCpfRepresentante(e.target.value)}
+                placeholder="000.000.000-00"
+                className="w-full mt-1 px-3 py-2 border rounded-md text-sm"
+                disabled={revalidarSafeweb.isPending}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Data de nascimento (YYYY-MM-DD)</label>
+              <input
+                type="date"
+                value={dataNascRepresentante}
+                onChange={(e) => setDataNascRepresentante(e.target.value)}
+                className="w-full mt-1 px-3 py-2 border rounded-md text-sm"
+                disabled={revalidarSafeweb.isPending}
+              />
+            </div>
+            {p?.cnpj && (
+              <p className="text-xs text-muted-foreground">
+                CNPJ alvo: <span className="font-mono">{p.cnpj}</span> (extraído do pedido)
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setModalRevalidar(false)}
+              disabled={revalidarSafeweb.isPending}
+            >
+              Cancelar
+            </Button>
+            <Button
+              disabled={
+                revalidarSafeweb.isPending ||
+                cpfRepresentante.replace(/\D/g, "").length !== 11 ||
+                !/^\d{4}-\d{2}-\d{2}$/.test(dataNascRepresentante)
+              }
+              onClick={() =>
+                revalidarSafeweb.mutate({
+                  cpfRepresentante: cpfRepresentante.replace(/\D/g, ""),
+                  dataNascRepresentante,
+                })
+              }
+            >
+              {revalidarSafeweb.isPending ? "Consultando RFB..." : "Revalidar e atualizar"}
             </Button>
           </DialogFooter>
         </DialogContent>
