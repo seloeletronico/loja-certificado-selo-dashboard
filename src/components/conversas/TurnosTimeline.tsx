@@ -2,6 +2,8 @@
 
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { ConversaTurno } from "@/lib/conversas";
 import { cn } from "@/lib/utils";
 
@@ -66,7 +68,27 @@ export function TurnosTimeline({ turnos }: Props) {
                 </span>
               )}
               <div className={cn("px-4 py-2.5 text-sm", cfg.bubble)}>
-                <p className="whitespace-pre-wrap break-words leading-relaxed">{turno.texto}</p>
+                {turno.ator === "CLIENTE" ? (
+                  <p className="whitespace-pre-wrap break-words leading-relaxed">{turno.texto}</p>
+                ) : (
+                  <div
+                    className={cn(
+                      "leading-relaxed break-words",
+                      // Tipografia consciente: listas e parágrafos com espaçamento controlado
+                      "[&_p]:my-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0",
+                      "[&_ul]:my-1.5 [&_ul]:pl-5 [&_ul]:list-disc",
+                      "[&_ol]:my-1.5 [&_ol]:pl-5 [&_ol]:list-decimal",
+                      "[&_li]:my-0.5",
+                      "[&_li>p]:my-0",
+                      "[&_strong]:font-semibold",
+                      "[&_em]:italic",
+                      "[&_code]:rounded [&_code]:bg-black/10 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[0.85em]",
+                      "[&_a]:underline [&_a]:underline-offset-2"
+                    )}
+                  >
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{turno.texto}</ReactMarkdown>
+                  </div>
+                )}
                 {toolNames.map((name) => (
                   <ToolCallChip key={name} name={name} />
                 ))}
