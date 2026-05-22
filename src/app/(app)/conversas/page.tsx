@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -47,7 +47,10 @@ export default function ConversasPage() {
     throwOnError: false,
   });
 
-  if (query.error) toast.error((query.error as Error).message);
+  // Toast só dispara quando o erro MUDA, não em todo re-render.
+  useEffect(() => {
+    if (query.error) toast.error((query.error as Error).message);
+  }, [query.error]);
 
   const handleFiltroChange = useCallback((patch: Partial<FiltrosConversas>) => {
     setFiltros((prev) => ({ ...prev, ...patch }));

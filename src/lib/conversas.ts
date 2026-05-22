@@ -168,7 +168,9 @@ const MOCK_TURNOS: Record<string, ConversaTurno[]> = {
 // Funções públicas
 // ──────────────────────────────────────────────
 
-const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK !== "false";
+// Polaridade segura: mock só liga se EXPLICITAMENTE setado como "true".
+// Default = false (produção). Dev liga via `.env.local` com NEXT_PUBLIC_USE_MOCK=true.
+const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === "true";
 
 export async function listarConversas(
   params: ListarConversasParams,
@@ -204,6 +206,7 @@ export async function listarConversas(
   const qs = new URLSearchParams();
   if (params.status) qs.set("status", params.status);
   if (params.canal) qs.set("canal", params.canal);
+  if (params.periodo) qs.set("periodo", params.periodo);
   if (params.cpfHash) qs.set("cpfHash", params.cpfHash);
   if (params.pagina) qs.set("pagina", String(params.pagina));
   if (params.porPagina) qs.set("porPagina", String(params.porPagina));
