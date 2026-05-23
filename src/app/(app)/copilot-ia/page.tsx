@@ -9,15 +9,17 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { gerarSugestao, enviarFeedback } from "./actions";
 
+// VALUES espelham enum Category do agente-api (prisma/schema.prisma).
+// Labels são livres pra UX amigável.
 const CATEGORIAS = [
   { value: "emissao", label: "Emissão" },
   { value: "renovacao", label: "Renovação" },
   { value: "revogacao", label: "Revogação" },
   { value: "agendamento", label: "Agendamento" },
   { value: "comercial", label: "Comercial" },
-  { value: "tecnico_instalacao", label: "Técnico — Instalação" },
-  { value: "tecnico_uso", label: "Técnico — Uso" },
-  { value: "duvida_geral", label: "Dúvida geral" },
+  { value: "suporte_instalacao", label: "Técnico — Instalação" },
+  { value: "problema_tecnico", label: "Técnico — Uso" },
+  { value: "duvida_normativa", label: "Dúvida normativa" },
   { value: "outro", label: "Outro" },
 ];
 
