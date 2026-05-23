@@ -13,6 +13,8 @@ import {
   TrendingUp,
   Calendar,
   MessagesSquare,
+  Sparkles,
+  BarChart3,
 } from "lucide-react";
 import {
   Sidebar,
@@ -35,6 +37,8 @@ const items = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard, permissoes: ["metricas.ver_operacional"] },
   { title: "Pedidos", url: "/pedidos", icon: ShoppingCart, permissoes: ["pedido.listar"] },
   { title: "Conversas", url: "/conversas", icon: MessagesSquare, permissoes: ["pedido.listar"] },
+  { title: "Métricas IA", url: "/metricas-ia", icon: BarChart3, permissoes: ["pedido.listar"] },
+  { title: "Copilot IA", url: "/copilot-ia", icon: Sparkles, permissoes: ["pedido.listar"] },
   { title: "Atribuição", url: "/atribuicao", icon: TrendingUp, permissoes: ["metricas.ver_operacional"] },
   { title: "Usuários", url: "/usuarios", icon: Users, permissoes: ["usuario.listar"] },
   { title: "Atendimentos", url: "/atendimentos", icon: Headphones, permissoes: ["pedido.listar_proprio"] },
