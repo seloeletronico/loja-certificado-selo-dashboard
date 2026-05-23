@@ -61,11 +61,29 @@ async function call<T>(path: string, init: RequestInit = {}, user?: UserCtx): Pr
   });
 
   if (!res.ok) {
+    // Body cru do agente-api NÃO vai pro browser — só pro log server-side.
+    // Mensagem exposta na UI é genérica por status (mapping abaixo).
     const body = await res.text();
-    throw new AgenteApiError(res.status, body.slice(0, 300));
+    console.error(
+      `[agente-api] ${init.method || "GET"} ${path} → ${res.status}: ${body.slice(0, 500)}`
+    );
+    throw new AgenteApiError(res.status, friendlyMessage(res.status, path));
   }
 
   return res.json() as Promise<T>;
+}
+
+// Mapa de HTTP status → mensagem amigável pro operador (não expõe detalhe interno).
+function friendlyMessage(status: number, path: string): string {
+  if (status === 401) return "Sem autorização para acessar este recurso.";
+  if (status === 403) return "Permissão insuficiente para essa ação.";
+  if (status === 404) return "Recurso não encontrado.";
+  if (status === 422 || status === 400) return "Dados inválidos enviados.";
+  if (status === 429) return "Limite de requisições excedido. Aguarde alguns segundos.";
+  if (status === 500) return `Erro interno no agente-api em ${path}. Time foi notificado.`;
+  if (status === 502 || status === 503 || status === 504)
+    return "Agente-api temporariamente indisponível. Tente novamente em segundos.";
+  return `Erro ${status} ao chamar agente-api.`;
 }
 
 // ──────────────────────────────────────────────
